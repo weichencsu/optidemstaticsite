@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>optiDEM | AI Enabled Granular Flow Simulation</title>
+
+    <!-- PNG fallbacks (modern browsers) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/icon.png">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.bunny.net">
+    <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700,800" rel="stylesheet" />
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom Config for Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            400: '#4ade80',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            900: '#14532d',
+                        },
+                        dark: {
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                        }
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'scroll': 'scroll 20s linear infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-20px)' },
+                        },
+                        scroll: {
+                            '0%': { transform: 'translateX(0)' },
+                            '100%': { transform: 'translateX(-50%)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .gradient-text {
+            background: linear-gradient(to right, #4ade80, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569; 
+        }
+
+        canvas#simCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.4;
+        }
+
+        /* Carousel Styles */
+        .carousel-track-container {
+            overflow: hidden;
+            position: relative;
+            width: 100%;
+        }
+        .carousel-track {
+            display: flex;
+            width: 200%;
+            animation: scroll 30s linear infinite;
+        }
+        .carousel-track:hover {
+            animation-play-state: paused;
+        }
+        .carousel-slide {
+            width: 250px;
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .carousel-slide img {
+            max-width: 100%;
+            height: auto;
+            opacity: 0.6;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            filter: grayscale(100%);
+        }
+        .carousel-slide img:hover {
+            opacity: 1;
+            filter: grayscale(0%);
+            transform: scale(1.05);
+        }
+
+        /* Page Transition */
+        .hidden-page {
+            display: none;
+            opacity: 0;
+        }
+        .visible-page {
+            display: block;
+            opacity: 1;
+        }
+        
+        /* Map iframe styling */
+        .map-frame {
+            border: 0;
+            width: 100%;
+            height: 100%;
+            min-height: 300px;
+            border-radius: 0.5rem;
+            filter: invert(90%) hue-rotate(180deg);
+        }
+
+        /* Application Card Image */
+        .app-card-image {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            border-radius: 0.5rem;
+            transition: transform 0.3s ease;
+        }
+        .app-card:hover .app-card-image {
+            transform: scale(1.05);
+        }
+
+        /* Technology Card Image */
+        .tech-card-image {
+            width: 100%;
+            height: 300px;
+            object-fit: cover;
+            border-radius: 0.5rem;
+            transition: transform 0.3s ease;
+        }
+        .tech-card:hover .tech-card-image {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body class="antialiased overflow-x-hidden flex flex-col min-h-screen">
+
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 glass-panel border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <div class="flex items-center gap-3 cursor-pointer" onclick="showHomePage()">
+                    <div class="w-10 h-10 bg-brand-500 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-brand-500/30">
+                        O
+                    </div>
+                    <span class="text-2xl font-bold tracking-tight text-white">opti<span class="text-brand-400">DEM</span></span>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-8">
+                        <a href="#features" onclick="showHomePage()" class="hover:text-brand-400 transition-colors px-3 py-2 rounded-md text-sm font-medium">Core Advantages</a>
+                        <a href="#trusted" onclick="showHomePage(); setTimeout(() => document.getElementById('trusted').scrollIntoView(), 100)" class="hover:text-brand-400 transition-colors px-3 py-2 rounded-md text-sm font-medium">Partners</a>
+                        <a href="#applications" onclick="showApplicationsPage()" class="hover:text-brand-400 transition-colors px-3 py-2 rounded-md text-sm font-medium">Applications</a>
+                        <a href="#technology" onclick="showTechnologyPage()" class="hover:text-brand-400 transition-colors px-3 py-2 rounded-md text-sm font-medium">Technology</a>
+                        <a href="#contact" onclick="showContactPage()" class="hover:text-brand-400 transition-colors px-3 py-2 rounded-md text-sm font-medium">Contact</a>
+                    </div>
+                </div>
+                <div>
+                    <a href="OptiDEM Introduction.pdf" download class="bg-white text-slate-900 hover:bg-brand-50 px-5 py-2.5 rounded-full text-sm font-bold transition-all transform hover:scale-105 shadow-lg">
+                        Download Source
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Home Page Content -->
+    <main id="home-content" class="flex-grow visible-page">
+        <!-- Hero Section -->
+        <section class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
+            <canvas id="simCanvas"></canvas>
+            <div class="absolute inset-0 bg-gradient-to-b from-transparent via-slate-900/80 to-slate-900 pointer-events-none"></div>
+
+            <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-panel border border-brand-500/30 mb-8 animate-float">
+                    <span class="w-2 h-2 rounded-full bg-brand-400 animate-pulse"></span>
+                    <span class="text-sm font-medium text-brand-100">The Only AI Intigrated DEM Platform</span>
+                </div>
+                
+                <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight text-white mb-6">
+                    Precision Granular Flow <br />
+                    <span class="gradient-text">Simulation Evolved</span>
+                </h1>
+                
+                <p class="mt-4 max-w-2xl mx-auto text-xl text-slate-400 mb-10">
+                    OptiDEM fuses cutting-edge algorithms with intelligent interaction. 
+                    A powerful, flexible, and highly customizable Discrete Element Method (DEM) solution for research and industry.
+                </p>
+                
+                <div class="flex flex-col sm:flex-row justify-center gap-4">
+                    <a href="OptiDEM Introduction.pdf" download class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-4 rounded-lg text-lg font-bold transition-all shadow-lg shadow-brand-500/25 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-code-branch"></i> Download Brochure
+                    </a>
+                    <a href="#" onclick="showApplicationsPage()" class="glass-panel hover:bg-slate-800 text-white px-8 py-4 rounded-lg text-lg font-bold transition-all flex items-center justify-center gap-2 border border-slate-700">
+                        <i class="fa-solid fa-layer-group"></i> Explore Applications
+                    </a>
+                </div>
+
+                <div class="mt-20 grid grid-cols-2 gap-8 md:grid-cols-4 border-t border-slate-800 pt-10">
+                    <div>
+                        <div class="text-4xl font-bold text-white">10M+</div>
+                        <div class="text-sm text-slate-500 uppercase tracking-wide mt-1">Particles Supported</div>
+                    </div>
+                    <div>
+                        <div class="text-4xl font-bold text-white">Unlimited</div>
+                        <div class="text-sm text-slate-500 uppercase tracking-wide mt-1">Compute Cores</div>
+                    </div>
+                    <div>
+                        <div class="text-4xl font-bold text-white">100%</div>
+                        <div class="text-sm text-slate-500 uppercase tracking-wide mt-1">Industry Template</div>
+                    </div>
+                    <div>
+                        <div class="text-4xl font-bold text-white">AI</div>
+                        <div class="text-sm text-slate-500 uppercase tracking-wide mt-1">Integrated Assistant</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Trusted By Carousel Section -->
+        <section id="trusted" class="py-16 bg-slate-900 border-y border-slate-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-10 text-center">
+                <h2 class="text-2xl font-bold text-slate-300 uppercase tracking-widest">Trusted by Industry Leaders</h2>
+            </div>
+            
+            <div class="carousel-track-container">
+                <div class="carousel-track">
+                        <!-- Set 1 of Logos -->
+                        <div class="carousel-slide">
+                            <img src="logos/bhp.png" alt="Mining Corp Logo">
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="logos/bisalloy.png" alt="Pharma Tech Logo">
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="logos/amman.png" alt="Global Chem Logo">
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="logos/chinalco.png" alt="Agri Solutions Logo">
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="logos/cpm.png" alt="Energy Systems Logo">
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="logos/famsun.png" alt="University Research Logo">
+                        </div>
+                        
+                        <!-- Set 2 of Logos (Duplicate for seamless loop) -->
+                        <div class="carousel-slide">
+                            <img src="logos/mrl.png" alt="Mining Corp Logo">
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="logos/nstar.png" alt="Pharma Tech Logo">
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="logos/rio.png" alt="Global Chem Logo">
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="logos/zijin.png" alt="Agri Solutions Logo">
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="logos/bhp.png" alt="Energy Systems Logo">
+                        </div>
+                        <div class="carousel-slide">
+                            <img src="logos/bisalloy.png" alt="University Research Logo">
+                        </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Core Advantages Section -->
+        <section id="features" class="py-24 bg-slate-900">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-16">
+                    <h2 class="text-brand-400 font-semibold tracking-wide uppercase text-sm">Core Advantages</h2>
+                    <p class="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-white sm:text-4xl">
+                        Why OptiDEM Stands Apart
+                    </p>
+                    <p class="mt-4 max-w-2xl text-xl text-slate-400 mx-auto">
+                        We break technical barriers with AI intigration strategies, smart interaction, and high-performance computing.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div class="glass-panel p-8 rounded-2xl hover:bg-slate-800 transition-colors duration-300 group">
+                        <div class="w-12 h-12 bg-brand-500/10 rounded-lg flex items-center justify-center mb-6 group-hover:bg-brand-500/20 transition-colors">
+                            <i class="fa-solid fa-code text-brand-400 text-xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-3">AI Intigrated Architecture</h3>
+                        <p class="text-slate-400 leading-relaxed">
+                            The industry's only DEM platform offering AI intigrated architecture. Modify and extend kernel algorithms freely to achieve true personalized simulation customization through AI.
+                        </p>
+                    </div>
+
+                    <div class="glass-panel p-8 rounded-2xl hover:bg-slate-800 transition-colors duration-300 group">
+                        <div class="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center mb-6 group-hover:bg-blue-500/20 transition-colors">
+                            <i class="fa-solid fa-box-open text-blue-400 text-xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-3">Industry Templates</h3>
+                        <p class="text-slate-400 leading-relaxed">
+                            Pre-configured templates and verified cases for Mining, Pharma, Chemical, and Agriculture. Rapidly build industrial models without starting from scratch.
+                        </p>
+                    </div>
+
+                    <div class="glass-panel p-8 rounded-2xl hover:bg-slate-800 transition-colors duration-300 group">
+                        <div class="w-12 h-12 bg-purple-500/10 rounded-lg flex items-center justify-center mb-6 group-hover:bg-purple-500/20 transition-colors">
+                            <i class="fa-solid fa-sliders text-purple-400 text-xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-3">Dual Mode Operation</h3>
+                        <p class="text-slate-400 leading-relaxed">
+                            Synergy between GUI and Scripting. Use the intuitive interface for basic setup or drive complex workflows and batch calculations via scripts.
+                        </p>
+                    </div>
+
+                    <div class="glass-panel p-8 rounded-2xl hover:bg-slate-800 transition-colors duration-300 group">
+                        <div class="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center mb-6 group-hover:bg-orange-500/20 transition-colors">
+                            <i class="fa-solid fa-robot text-orange-400 text-xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-3">AI Intelligent Assistant</h3>
+                        <p class="text-slate-400 leading-relaxed">
+                            Integrated AI chat module supports natural language interaction. Generate scripts, query parameters, and get optimization recommendations instantly.
+                        </p>
+                    </div>
+
+                    <div class="glass-panel p-8 rounded-2xl hover:bg-slate-800 transition-colors duration-300 group">
+                        <div class="w-12 h-12 bg-cyan-500/10 rounded-lg flex items-center justify-center mb-6 group-hover:bg-cyan-500/20 transition-colors">
+                            <i class="fa-solid fa-server text-cyan-400 text-xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-3">Unlimited Parallel Computing</h3>
+                        <p class="text-slate-400 leading-relaxed">
+                            Proprietary parallel algorithms with no limits on core count or installations. Supports millions of particles on workstations or HPC clusters.
+                        </p>
+                    </div>
+
+                    <div class="glass-panel p-8 rounded-2xl hover:bg-slate-800 transition-colors duration-300 group">
+                        <div class="w-12 h-12 bg-pink-500/10 rounded-lg flex items-center justify-center mb-6 group-hover:bg-pink-500/20 transition-colors">
+                            <i class="fa-solid fa-recycle text-pink-400 text-xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-3">Sustainable Ecosystem</h3>
+                        <p class="text-slate-400 leading-relaxed">
+                            More than a tool, OptiDEM is an evolving simulation ecosystem. We empower every user to achieve simulation innovation efficiently and autonomously.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Section -->
+        <section class="py-20 bg-brand-900/20 border-y border-brand-500/20">
+            <div class="max-w-4xl mx-auto px-4 text-center">
+                <h2 class="text-3xl font-bold text-white mb-6">Ready to Transform Your Simulation Workflow?</h2>
+                <p class="text-slate-300 mb-8 text-lg">
+                    Join the AI intigrated architecture revolution in granular flow simulation. No core limits, no black boxes.
+                </p>
+                <div class="flex flex-col sm:flex-row justify-center gap-4">
+                    <a href="OptiDEM Introduction.pdf" download class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-4 rounded-lg text-lg font-bold transition-all shadow-lg shadow-brand-500/25">
+                        Download OptiDEM
+                    </a>
+                    <a href="#" onclick="showContactPage()" class="bg-slate-800 hover:bg-slate-700 text-white px-8 py-4 rounded-lg text-lg font-bold transition-all border border-slate-700">
+                        Contact Sales
+                    </a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Applications Page Content -->
+    <main id="applications-content" class="flex-grow hidden-page pt-32 pb-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="mb-12">
+                <button onclick="showHomePage()" class="flex items-center text-slate-400 hover:text-brand-400 transition-colors mb-6">
+                    <i class="fa-solid fa-arrow-left mr-2"></i> Back to Home
+                </button>
+                <h1 class="text-4xl font-extrabold text-white mb-4">Industry Applications</h1>
+                <p class="text-slate-400 text-lg max-w-3xl">
+                    OptiDEM delivers powerful DEM simulation capabilities across diverse industries. 
+                    From mining operations to chemical processing, our software helps you optimize processes, 
+                    reduce costs, and accelerate innovation.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                <!-- Mining -->
+                <div class="app-card glass-panel rounded-2xl overflow-hidden border border-slate-700 shadow-xl group">
+                    <div class="relative overflow-hidden">
+                        <img src="assets/applications/mining.jpg" alt="Mining Application" class="app-card-image">
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
+                        <div class="absolute bottom-4 left-6">
+                            <div class="w-12 h-12 bg-brand-500 rounded-lg flex items-center justify-center text-white mb-2">
+                                <i class="fa-solid fa-pickaxe text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-8">
+                        <h2 class="text-2xl font-bold text-white mb-4">Mining</h2>
+                        <p class="text-slate-400 leading-relaxed mb-6">
+                            Optimize extraction and processing operations with detailed particle flow analysis. 
+                            Simulate crushing, screening, conveying, and stockpiling processes to improve equipment design, 
+                            reduce wear, and maximize throughput.
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Crushing</span>
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Screening</span>
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Conveying</span>
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Stockpiling</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mineral Processing -->
+                <div class="app-card glass-panel rounded-2xl overflow-hidden border border-slate-700 shadow-xl group">
+                    <div class="relative overflow-hidden">
+                        <img src="assets/applications/mineral-processing.jpg" alt="Mineral Processing Application" class="app-card-image">
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
+                        <div class="absolute bottom-4 left-6">
+                            <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center text-white mb-2">
+                                <i class="fa-solid fa-gem text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-8">
+                        <h2 class="text-2xl font-bold text-white mb-4">Mineral Processing</h2>
+                        <p class="text-slate-400 leading-relaxed mb-6">
+                            Enhance separation efficiency and recovery rates through advanced particle dynamics simulation. 
+                            Model grinding mills, flotation cells, magnetic separators, and classification equipment.
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Grinding</span>
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Flotation</span>
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Separation</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bulk Materials Handling -->
+                <div class="app-card glass-panel rounded-2xl overflow-hidden border border-slate-700 shadow-xl group">
+                    <div class="relative overflow-hidden">
+                        <img src="assets/applications/bulk-handling.jpg" alt="Bulk Materials Handling Application" class="app-card-image">
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
+                        <div class="absolute bottom-4 left-6">
+                            <div class="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center text-white mb-2">
+                                <i class="fa-solid fa-dolly text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-8">
+                        <h2 class="text-2xl font-bold text-white mb-4">Bulk Materials Handling</h2>
+                        <p class="text-slate-400 leading-relaxed mb-6">
+                            Design efficient material handling systems with confidence. Simulate hopper flow, chute design, 
+                            silo discharge, and conveyor transfer points to prevent blockages and reduce segregation.
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Hopper Design</span>
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Chute Flow</span>
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Silo Discharge</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agriculture -->
+                <div class="app-card glass-panel rounded-2xl overflow-hidden border border-slate-700 shadow-xl group">
+                    <div class="relative overflow-hidden">
+                        <img src="assets/applications/agriculture.jpg" alt="Agriculture Application" class="app-card-image">
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
+                        <div class="absolute bottom-4 left-6">
+                            <div class="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center text-white mb-2">
+                                <i class="fa-solid fa-wheat-awn text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-8">
+                        <h2 class="text-2xl font-bold text-white mb-4">Agriculture</h2>
+                        <p class="text-slate-400 leading-relaxed mb-6">
+                            Improve agricultural processing equipment and reduce product loss through particle-level simulation. 
+                            Analyze seed handling, grain drying, feed mixing, and fertilizer distribution systems.
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Seed Handling</span>
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Grain Drying</span>
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Feed Mixing</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chemical Engineering -->
+                <div class="app-card glass-panel rounded-2xl overflow-hidden border border-slate-700 shadow-xl group">
+                    <div class="relative overflow-hidden">
+                        <img src="assets/applications/chemical.jpg" alt="Chemical Engineering Application" class="app-card-image">
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
+                        <div class="absolute bottom-4 left-6">
+                            <div class="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center text-white mb-2">
+                                <i class="fa-solid fa-flask text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-8">
+                        <h2 class="text-2xl font-bold text-white mb-4">Chemical Engineering</h2>
+                        <p class="text-slate-400 leading-relaxed mb-6">
+                            Model complex particulate processes in chemical manufacturing with precision. Simulate fluidized bed reactors, 
+                            pneumatic conveying systems, powder mixing, granulation, and coating processes.
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Fluidized Beds</span>
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Pneumatic Conveying</span>
+                            <span class="px-3 py-1 bg-slate-800 text-slate-300 text-sm rounded-full">Granulation</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CTA Card -->
+                <div class="glass-panel rounded-2xl overflow-hidden border border-brand-500/30 shadow-xl flex flex-col justify-center items-center text-center p-8 bg-gradient-to-br from-brand-900/30 to-slate-900">
+                    <div class="w-20 h-20 bg-brand-500 rounded-full flex items-center justify-center text-white mb-6">
+                        <i class="fa-solid fa-rocket text-3xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-white mb-4">Don't See Your Industry?</h2>
+                    <p class="text-slate-400 leading-relaxed mb-8 max-w-md">
+                        OptiDEM is highly customizable and can be adapted to virtually any particulate processing application. 
+                        Contact our team to discuss your specific needs.
+                    </p>
+                    <a href="#" onclick="showContactPage()" class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-4 rounded-lg text-lg font-bold transition-all shadow-lg shadow-brand-500/25">
+                        Contact Our Team
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Technology Page Content -->
+    <main id="technology-content" class="flex-grow hidden-page pt-32 pb-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="mb-12">
+                <button onclick="showHomePage()" class="flex items-center text-slate-400 hover:text-brand-400 transition-colors mb-6">
+                    <i class="fa-solid fa-arrow-left mr-2"></i> Back to Home
+                </button>
+                <h1 class="text-4xl font-extrabold text-white mb-4">Core Technology</h1>
+                <p class="text-slate-400 text-lg max-w-3xl">
+                    OptiDEM is built on three pillars: industry template strategy, intelligent interaction, and high-performance computing. 
+                    Discover the advanced technologies that make OptiDEM the most powerful DEM simulation platform available.
+                </p>
+            </div>
+
+            <div class="space-y-16">
+                
+                <!-- Technology 1: Open Source -->
+                <div class="tech-card glass-panel rounded-2xl overflow-hidden border border-slate-700 shadow-xl">
+                    <div class="grid grid-cols-1 lg:grid-cols-2">
+                        <div class="relative overflow-hidden">
+                            <img src="assets/technology/open-source.jpg" alt="AI Integrated Architecture" class="tech-card-image h-full">
+                            <div class="absolute inset-0 bg-gradient-to-r from-slate-900 via-transparent to-transparent lg:bg-gradient-to-r lg:from-slate-900 lg:via-transparent lg:to-transparent"></div>
+                        </div>
+                        <div class="p-8 lg:p-12 flex flex-col justify-center">
+                            <div class="w-14 h-14 bg-brand-500/20 rounded-xl flex items-center justify-center text-brand-400 mb-6">
+                                <i class="fa-solid fa-code text-2xl"></i>
+                            </div>
+                            <h2 class="text-3xl font-bold text-white mb-4">AI Intigrated Architecture</h2>
+                            <h3 class="text-lg font-semibold text-brand-400 mb-4">Breaking Technical Barriers Through Transparency</h3>
+                            <p class="text-slate-400 leading-relaxed mb-6">
+                                OptiDEM stands as the industry's only DEM platform that provides AI intigrated architecture to users. 
+                                This unprecedented openness empowers researchers and engineers to modify, extend, and customize 
+                                kernel algorithms according to their specific research or engineering requirements.
+                            </p>
+                            <p class="text-slate-400 leading-relaxed mb-6">
+                                Unlike traditional commercial software with closed black-box architectures, OptiDEM enables true 
+                                personalized simulation customization. Users can implement custom contact models, develop novel 
+                                coupling algorithms, or integrate domain-specific physics that commercial alternatives simply cannot support.
+                            </p>
+                            <ul class="space-y-3">
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-brand-400 mt-1"></i>
+                                    <span class="text-slate-300">Full kernel algorithm access and modification rights</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-brand-400 mt-1"></i>
+                                    <span class="text-slate-300">Implement custom contact models and physics</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-brand-400 mt-1"></i>
+                                    <span class="text-slate-300">No licensing restrictions on modifications</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-brand-400 mt-1"></i>
+                                    <span class="text-slate-300">Community-driven development and support</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Technology 2: Industry Templates -->
+                <div class="tech-card glass-panel rounded-2xl overflow-hidden border border-slate-700 shadow-xl">
+                    <div class="grid grid-cols-1 lg:grid-cols-2">
+                        <div class="relative overflow-hidden lg:order-2">
+                            <img src="assets/technology/templates.jpg" alt="Industry Templates" class="tech-card-image h-full">
+                            <div class="absolute inset-0 bg-gradient-to-l from-slate-900 via-transparent to-transparent lg:bg-gradient-to-l lg:from-slate-900 lg:via-transparent lg:to-transparent"></div>
+                        </div>
+                        <div class="p-8 lg:p-12 flex flex-col justify-center lg:order-1">
+                            <div class="w-14 h-14 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400 mb-6">
+                                <i class="fa-solid fa-box-open text-2xl"></i>
+                            </div>
+                            <h2 class="text-3xl font-bold text-white mb-4">Industry Templates & Cases</h2>
+                            <h3 class="text-lg font-semibold text-blue-400 mb-4">Accelerate Your Simulation Workflow</h3>
+                            <p class="text-slate-400 leading-relaxed mb-6">
+                                OptiDEM comes pre-configured with comprehensive parameter templates and verified simulation cases 
+                                across multiple industries including Mining, Pharmaceutical, Chemical, and Agriculture. 
+                                These templates are built from real-world industrial applications and validated through extensive testing.
+                            </p>
+                            <p class="text-slate-400 leading-relaxed mb-6">
+                                New users can rapidly build industrial-grade simulation models without starting from scratch or 
+                                spending weeks learning optimal parameter settings. Our template library significantly reduces 
+                                learning curves and project startup time, allowing you to focus on results rather than configuration.
+                            </p>
+                            <ul class="space-y-3">
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-blue-400 mt-1"></i>
+                                    <span class="text-slate-300">Pre-validated parameters for common industrial scenarios</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-blue-400 mt-1"></i>
+                                    <span class="text-slate-300">Ready-to-run example cases for each industry sector</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-blue-400 mt-1"></i>
+                                    <span class="text-slate-300">Comprehensive documentation and best practices</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-blue-400 mt-1"></i>
+                                    <span class="text-slate-300">Regularly updated with new industry applications</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Technology 3: Dual Mode -->
+                <div class="tech-card glass-panel rounded-2xl overflow-hidden border border-slate-700 shadow-xl">
+                    <div class="grid grid-cols-1 lg:grid-cols-2">
+                        <div class="relative overflow-hidden">
+                            <img src="assets/technology/dual-mode.jpg" alt="Dual Mode Operation" class="tech-card-image h-full">
+                            <div class="absolute inset-0 bg-gradient-to-r from-slate-900 via-transparent to-transparent lg:bg-gradient-to-r lg:from-slate-900 lg:via-transparent lg:to-transparent"></div>
+                        </div>
+                        <div class="p-8 lg:p-12 flex flex-col justify-center">
+                            <div class="w-14 h-14 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-400 mb-6">
+                                <i class="fa-solid fa-sliders text-2xl"></i>
+                            </div>
+                            <h2 class="text-3xl font-bold text-white mb-4">Dual Mode Operation</h2>
+                            <h3 class="text-lg font-semibold text-purple-400 mb-4">GUI Convenience Meets Script Flexibility</h3>
+                            <p class="text-slate-400 leading-relaxed mb-6">
+                                OptiDEM uniquely combines an intuitive graphical user interface with powerful script-driven 
+                                simulation capabilities. This dual-mode approach ensures that both novice users and advanced 
+                                researchers can work efficiently within the same platform.
+                            </p>
+                            <p class="text-slate-400 leading-relaxed mb-6">
+                                The GUI provides drag-and-drop geometry setup, visual particle generation, and real-time 
+                                simulation monitoring for quick project initialization. Meanwhile, the scripting interface 
+                                enables complex workflow automation, parametric studies, and batch calculations that would be 
+                                impractical through manual GUI interaction.
+                            </p>
+                            <ul class="space-y-3">
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-purple-400 mt-1"></i>
+                                    <span class="text-slate-300">Intuitive GUI for rapid model setup and visualization</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-purple-400 mt-1"></i>
+                                    <span class="text-slate-300">Python scripting for complex workflow automation</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-purple-400 mt-1"></i>
+                                    <span class="text-slate-300">Seamless transition between GUI and script modes</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-purple-400 mt-1"></i>
+                                    <span class="text-slate-300">Batch processing and parametric study capabilities</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Technology 4: AI Assistant -->
+                <div class="tech-card glass-panel rounded-2xl overflow-hidden border border-slate-700 shadow-xl">
+                    <div class="grid grid-cols-1 lg:grid-cols-2">
+                        <div class="relative overflow-hidden lg:order-2">
+                            <img src="assets/technology/ai-assistant.jpg" alt="AI Intelligent Assistant" class="tech-card-image h-full">
+                            <div class="absolute inset-0 bg-gradient-to-l from-slate-900 via-transparent to-transparent lg:bg-gradient-to-l lg:from-slate-900 lg:via-transparent lg:to-transparent"></div>
+                        </div>
+                        <div class="p-8 lg:p-12 flex flex-col justify-center lg:order-1">
+                            <div class="w-14 h-14 bg-orange-500/20 rounded-xl flex items-center justify-center text-orange-400 mb-6">
+                                <i class="fa-solid fa-robot text-2xl"></i>
+                            </div>
+                            <h2 class="text-3xl font-bold text-white mb-4">AI Intelligent Assistant</h2>
+                            <h3 class="text-lg font-semibold text-orange-400 mb-4">Natural Language Simulation Setup</h3>
+                            <p class="text-slate-400 leading-relaxed mb-6">
+                                OptiDEM integrates an advanced AI conversation module that supports natural language interaction 
+                                for simulation setup and optimization. This groundbreaking feature dramatically lowers the 
+                                barrier to entry for DEM simulation while accelerating expert workflows.
+                            </p>
+                            <p class="text-slate-400 leading-relaxed mb-6">
+                                The AI assistant understands domain-specific terminology and can generate complete simulation 
+                                scripts from natural language descriptions, query parameter setting recommendations, and provide 
+                                optimization suggestions based on your simulation goals. It learns from community usage patterns 
+                                to continuously improve its recommendations.
+                            </p>
+                            <ul class="space-y-3">
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-orange-400 mt-1"></i>
+                                    <span class="text-slate-300">Generate simulation scripts via natural language commands</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-orange-400 mt-1"></i>
+                                    <span class="text-slate-300">Intelligent parameter recommendation and validation</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-orange-400 mt-1"></i>
+                                    <span class="text-slate-300">Domain-specific terminology understanding</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-orange-400 mt-1"></i>
+                                    <span class="text-slate-300">Continuous learning from community usage patterns</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Technology 5: High Performance -->
+                <div class="tech-card glass-panel rounded-2xl overflow-hidden border border-slate-700 shadow-xl">
+                    <div class="grid grid-cols-1 lg:grid-cols-2">
+                        <div class="relative overflow-hidden">
+                            <img src="assets/technology/parallel-computing.jpg" alt="High Performance Computing" class="tech-card-image h-full">
+                            <div class="absolute inset-0 bg-gradient-to-r from-slate-900 via-transparent to-transparent lg:bg-gradient-to-r lg:from-slate-900 lg:via-transparent lg:to-transparent"></div>
+                        </div>
+                        <div class="p-8 lg:p-12 flex flex-col justify-center">
+                            <div class="w-14 h-14 bg-cyan-500/20 rounded-xl flex items-center justify-center text-cyan-400 mb-6">
+                                <i class="fa-solid fa-server text-2xl"></i>
+                            </div>
+                            <h2 class="text-3xl font-bold text-white mb-4">High Performance Parallel Computing</h2>
+                            <h3 class="text-lg font-semibold text-cyan-400 mb-4">Unlimited Scale, Maximum Efficiency</h3>
+                            <p class="text-slate-400 leading-relaxed mb-6">
+                                OptiDEM employs proprietary parallel algorithms designed from the ground up for maximum scalability 
+                                and efficiency. With no artificial limits on core count or installation numbers, OptiDEM can 
+                                harness the full power of your hardware infrastructure.
+                            </p>
+                            <p class="text-slate-400 leading-relaxed mb-6">
+                                Whether running on a desktop workstation or a large-scale HPC cluster, OptiDEM efficiently 
+                                distributes computation across all available resources. Our optimized neighbor search algorithms 
+                                and load balancing strategies enable simulations with tens of millions of particles to complete 
+                                in practical timeframes.
+                            </p>
+                            <ul class="space-y-3">
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-cyan-400 mt-1"></i>
+                                    <span class="text-slate-300">No limits on CPU cores or cluster nodes</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-cyan-400 mt-1"></i>
+                                    <span class="text-slate-300">Support for 10+ million particle simulations</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-cyan-400 mt-1"></i>
+                                    <span class="text-slate-300">Optimized for both workstations and HPC clusters</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-cyan-400 mt-1"></i>
+                                    <span class="text-slate-300">Efficient memory management and load balancing</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Technology 6: Sustainable Ecosystem -->
+                <div class="tech-card glass-panel rounded-2xl overflow-hidden border border-slate-700 shadow-xl">
+                    <div class="grid grid-cols-1 lg:grid-cols-2">
+                        <div class="relative overflow-hidden lg:order-2">
+                            <img src="assets/technology/ecosystem.jpg" alt="Sustainable Ecosystem" class="tech-card-image h-full">
+                            <div class="absolute inset-0 bg-gradient-to-l from-slate-900 via-transparent to-transparent lg:bg-gradient-to-l lg:from-slate-900 lg:via-transparent lg:to-transparent"></div>
+                        </div>
+                        <div class="p-8 lg:p-12 flex flex-col justify-center lg:order-1">
+                            <div class="w-14 h-14 bg-pink-500/20 rounded-xl flex items-center justify-center text-pink-400 mb-6">
+                                <i class="fa-solid fa-recycle text-2xl"></i>
+                            </div>
+                            <h2 class="text-3xl font-bold text-white mb-4">Sustainable Simulation Ecosystem</h2>
+                            <h3 class="text-lg font-semibold text-pink-400 mb-4">More Than Software - A Community</h3>
+                            <p class="text-slate-400 leading-relaxed mb-6">
+                                OptiDEM represents more than just a simulation tool - it's an evolving ecosystem designed for 
+                                long-term sustainability and community growth. Our AI intigrated Architecture ensures that the 
+                                platform continues to improve through collective contribution and shared innovation.
+                            </p>
+                            <p class="text-slate-400 leading-relaxed mb-6">
+                                By empowering every user to contribute improvements, share templates, and collaborate on solutions, 
+                                OptiDEM creates a virtuous cycle of innovation. This community-driven approach ensures that the 
+                                platform remains at the cutting edge of DEM technology while remaining accessible to all users.
+                            </p>
+                            <ul class="space-y-3">
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-pink-400 mt-1"></i>
+                                    <span class="text-slate-300">Active community forum and knowledge sharing</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-pink-400 mt-1"></i>
+                                    <span class="text-slate-300">Regular updates driven by user feedback</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-pink-400 mt-1"></i>
+                                    <span class="text-slate-300">Template and plugin sharing marketplace</span>
+                                </li>
+                                <li class="flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-check text-pink-400 mt-1"></i>
+                                    <span class="text-slate-300">Long-term platform sustainability guaranteed</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Bottom CTA -->
+            <div class="mt-20 text-center">
+                <div class="glass-panel rounded-2xl p-12 border border-brand-500/30 bg-gradient-to-br from-brand-900/30 to-slate-900">
+                    <h2 class="text-3xl font-bold text-white mb-4">Ready to Experience OptiDEM Technology?</h2>
+                    <p class="text-slate-400 mb-8 max-w-2xl mx-auto">
+                        Download OptiDEM today and join the growing community of researchers and engineers 
+                        who are transforming their simulation workflows with AI power.
+                    </p>
+                    <div class="flex flex-col sm:flex-row justify-center gap-4">
+                        <a href="OptiDEM Introduction.pdf" download class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-4 rounded-lg text-lg font-bold transition-all shadow-lg shadow-brand-500/25">
+                            Download Now
+                        </a>
+                        <a href="#" onclick="showContactPage()" class="glass-panel hover:bg-slate-800 text-white px-8 py-4 rounded-lg text-lg font-bold transition-all border border-slate-700">
+                            Contact Our Team
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Contact Page Content -->
+    <main id="contact-content" class="flex-grow hidden-page pt-32 pb-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="mb-12">
+                <button onclick="showHomePage()" class="flex items-center text-slate-400 hover:text-brand-400 transition-colors mb-6">
+                    <i class="fa-solid fa-arrow-left mr-2"></i> Back to Home
+                </button>
+                <h1 class="text-4xl font-extrabold text-white mb-4">Contact Us</h1>
+                <p class="text-slate-400 text-lg">Get in touch with our global offices for sales, support, and partnerships.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                <!-- Head Office -->
+                <div class="glass-panel rounded-2xl overflow-hidden border border-slate-700 shadow-xl">
+                    <div class="h-96 w-full bg-slate-800 relative">
+                        <iframe 
+                            class="map-frame absolute inset-0"
+                            src="https://maps.google.com/maps?q=2+Howard+Pl,+Hunters+Hill,+2110+NSW&t=&z=15&ie=UTF8&iwloc=&output=embed" 
+                            allowfullscreen="" 
+                            loading="lazy">
+                        </iframe>
+                    </div>
+                    <div class="p-8">
+                        <div class="flex items-center gap-3 mb-6">
+                            <div class="w-10 h-10 bg-brand-500/20 rounded-full flex items-center justify-center text-brand-400">
+                                <i class="fa-solid fa-building"></i>
+                            </div>
+                            <h2 class="text-2xl font-bold text-white">Head Office</h2>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="flex items-start gap-4">
+                                <i class="fa-solid fa-location-dot text-brand-400 mt-1 w-5"></i>
+                                <span class="text-slate-300">2 Howard Pl, Hunters Hill, 2110 NSW, Australia</span>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <i class="fa-solid fa-phone text-brand-400 w-5"></i>
+                                <span class="text-slate-300">+61 2 4921 5684</span>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <i class="fa-solid fa-mobile-screen text-brand-400 w-5"></i>
+                                <span class="text-slate-300">+61 415 851 073</span>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <i class="fa-solid fa-envelope text-brand-400 w-5"></i>
+                                <a href="mailto:sales@opti-dem.com" class="text-slate-300 hover:text-brand-400 transition-colors">sales@opti-dem.com</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Greater China Agent -->
+                <div class="glass-panel rounded-2xl overflow-hidden border border-slate-700 shadow-xl">
+                    <div class="h-96 w-full bg-slate-800 relative">
+                        <iframe 
+                            class="map-frame absolute inset-0"
+                            src="https://maps.google.com/maps?q=20+Jiayuan+Road,+Hongshan+District,+Wuhan&t=&z=15&ie=UTF8&iwloc=&output=embed" 
+                            allowfullscreen="" 
+                            loading="lazy">
+                        </iframe>
+                    </div>
+                    <div class="p-8">
+                        <div class="flex items-center gap-3 mb-6">
+                            <div class="w-10 h-10 bg-brand-500/20 rounded-full flex items-center justify-center text-brand-400">
+                                <i class="fa-solid fa-handshake"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-2xl font-bold text-white">Greater China Agent</h2>
+                                <p class="text-sm text-brand-400 font-medium">武汉一格空间科技有限公司</p>
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="flex items-start gap-4">
+                                <i class="fa-solid fa-location-dot text-brand-400 mt-1 w-5"></i>
+                                <span class="text-slate-300">武汉东湖新技术开发区关东街道高新二路9号北辰光谷里8A栋1607（自贸区武汉片区）<br><span class="text-sm text-slate-500">(Donghu Technology Development District, Wuhan)</span></span>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <i class="fa-solid fa-phone text-brand-400 w-5"></i>
+                                <span class="text-slate-300">+86 021 6037 8100</span>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <i class="fa-solid fa-mobile-screen text-brand-400 w-5"></i>
+                                <span class="text-slate-300">+86 153 0749 6668</span>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <i class="fa-solid fa-envelope text-brand-400 w-5"></i>
+                                <a href="mailto:china@opti-dem.com" class="text-slate-300 hover:text-brand-400 transition-colors">china@opti-dem.com</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Contact Form Section -->
+            <div class="mt-16 glass-panel p-8 rounded-2xl border border-slate-700">
+                <h3 class="text-2xl font-bold text-white mb-6">Send us a Message</h3>
+                <form class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Name</label>
+                        <input type="text" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-brand-500 transition-colors" placeholder="Your Name">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Email</label>
+                        <input type="email" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-brand-500 transition-colors" placeholder="your@email.com">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Message</label>
+                        <textarea rows="4" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-brand-500 transition-colors" placeholder="How can we help you?"></textarea>
+                    </div>
+                    <div class="md:col-span-2">
+                        <button type="button" class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-3 rounded-lg font-bold transition-all shadow-lg shadow-brand-500/25">
+                            Send Message
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer id="contact-footer" class="bg-slate-950 border-t border-slate-800 pt-16 pb-8 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+                <div class="col-span-2 md:col-span-1">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-8 h-8 bg-brand-500 rounded flex items-center justify-center text-white font-bold">O</div>
+                        <span class="text-xl font-bold text-white">optiDEM</span>
+                    </div>
+                    <p class="text-slate-500 text-sm">
+                        A sustainable evolution simulation ecosystem. Empowering users to achieve efficient and autonomous simulation innovation.
+                    </p>
+                </div>
+                <div>
+                    <h4 class="text-white font-semibold mb-4">Product</h4>
+                    <ul class="space-y-2 text-sm text-slate-400">
+                        <li><a href="#" class="hover:text-brand-400">Download Brochure</a></li>
+                        <li><a href="#" class="hover:text-brand-400">Case Studies</a></li>
+                        <li><a href="#" class="hover:text-brand-400">Testimonial</a></li>
+                        <li><a href="#" class="hover:text-brand-400">AI Assistant</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-white font-semibold mb-4">Company</h4>
+                    <ul class="space-y-2 text-sm text-slate-400">
+                        <li><a href="#" class="hover:text-brand-400">About Us</a></li>
+                        <li><a href="#" class="hover:text-brand-400">Contact</a></li>
+                        <li><a href="#" class="hover:text-brand-400">Privacy Policy</a></li>
+                        <li><a href="#" class="hover:text-brand-400">License</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                <p class="text-slate-600 text-sm">© 2023 optiDEM Inc. All rights reserved.</p>
+                <div class="flex space-x-6">
+                    <a href="#" class="text-slate-500 hover:text-white"><i class="fa-brands fa-github text-xl"></i></a>
+                    <a href="#" class="text-slate-500 hover:text-white"><i class="fa-brands fa-twitter text-xl"></i></a>
+                    <a href="#" class="text-slate-500 hover:text-white"><i class="fa-brands fa-linkedin text-xl"></i></a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        // Page Navigation Logic
+        function showApplicationsPage() {
+            document.getElementById('home-content').classList.add('hidden-page');
+            document.getElementById('home-content').classList.remove('visible-page');
+            document.getElementById('contact-content').classList.add('hidden-page');
+            document.getElementById('contact-content').classList.remove('visible-page');
+            document.getElementById('technology-content').classList.add('hidden-page');
+            document.getElementById('technology-content').classList.remove('visible-page');
+            
+            setTimeout(() => {
+                document.getElementById('home-content').style.display = 'none';
+                document.getElementById('contact-content').style.display = 'none';
+                document.getElementById('technology-content').style.display = 'none';
+                document.getElementById('applications-content').style.display = 'block';
+                void document.getElementById('applications-content').offsetWidth;
+                document.getElementById('applications-content').classList.remove('hidden-page');
+                document.getElementById('applications-content').classList.add('visible-page');
+                window.scrollTo(0, 0);
+            }, 300);
+        }
+
+        function showTechnologyPage() {
+            document.getElementById('home-content').classList.add('hidden-page');
+            document.getElementById('home-content').classList.remove('visible-page');
+            document.getElementById('contact-content').classList.add('hidden-page');
+            document.getElementById('contact-content').classList.remove('visible-page');
+            document.getElementById('applications-content').classList.add('hidden-page');
+            document.getElementById('applications-content').classList.remove('visible-page');
+            
+            setTimeout(() => {
+                document.getElementById('home-content').style.display = 'none';
+                document.getElementById('contact-content').style.display = 'none';
+                document.getElementById('applications-content').style.display = 'none';
+                document.getElementById('technology-content').style.display = 'block';
+                void document.getElementById('technology-content').offsetWidth;
+                document.getElementById('technology-content').classList.remove('hidden-page');
+                document.getElementById('technology-content').classList.add('visible-page');
+                window.scrollTo(0, 0);
+            }, 300);
+        }
+
+        function showContactPage() {
+            document.getElementById('home-content').classList.add('hidden-page');
+            document.getElementById('home-content').classList.remove('visible-page');
+            document.getElementById('applications-content').classList.add('hidden-page');
+            document.getElementById('applications-content').classList.remove('visible-page');
+            document.getElementById('technology-content').classList.add('hidden-page');
+            document.getElementById('technology-content').classList.remove('visible-page');
+            
+            setTimeout(() => {
+                document.getElementById('home-content').style.display = 'none';
+                document.getElementById('applications-content').style.display = 'none';
+                document.getElementById('technology-content').style.display = 'none';
+                document.getElementById('contact-content').style.display = 'block';
+                void document.getElementById('contact-content').offsetWidth;
+                document.getElementById('contact-content').classList.remove('hidden-page');
+                document.getElementById('contact-content').classList.add('visible-page');
+                window.scrollTo(0, 0);
+            }, 300);
+        }
+
+        function showHomePage() {
+            document.getElementById('applications-content').classList.add('hidden-page');
+            document.getElementById('applications-content').classList.remove('visible-page');
+            document.getElementById('contact-content').classList.add('hidden-page');
+            document.getElementById('contact-content').classList.remove('visible-page');
+            document.getElementById('technology-content').classList.add('hidden-page');
+            document.getElementById('technology-content').classList.remove('visible-page');
+            
+            setTimeout(() => {
+                document.getElementById('applications-content').style.display = 'none';
+                document.getElementById('contact-content').style.display = 'none';
+                document.getElementById('technology-content').style.display = 'none';
+                document.getElementById('home-content').style.display = 'block';
+                void document.getElementById('home-content').offsetWidth;
+                document.getElementById('home-content').classList.remove('hidden-page');
+                document.getElementById('home-content').classList.add('visible-page');
+                window.scrollTo(0, 0);
+            }, 300);
+        }
+
+        // Particle Simulation for Hero Background
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width, height;
+        let particles = [];
+        
+        const particleCount = 60;
+        const connectionDistance = 150;
+        const mouseDistance = 200;
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        
+        window.addEventListener('resize', resize);
+        resize();
+
+        let mouse = { x: null, y: null };
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.x;
+            mouse.y = e.y;
+        });
+        window.addEventListener('mouseleave', () => {
+            mouse.x = null;
+            mouse.y = null;
+        });
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 1.5;
+                this.vy = (Math.random() - 0.5) * 1.5;
+                this.size = Math.random() * 3 + 1;
+                this.color = `rgba(74, 222, 128, ${Math.random() * 0.5 + 0.1})`;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < 0 || this.x > width) this.vx *= -1;
+                if (this.y < 0 || this.y > height) this.vy *= -1;
+
+                if (mouse.x != null) {
+                    let dx = mouse.x - this.x;
+                    let dy = mouse.y - this.y;
+                    let distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < mouseDistance) {
+                        const forceDirectionX = dx / distance;
+                        const forceDirectionY = dy / distance;
+                        const force = (mouseDistance - distance) / mouseDistance;
+                        const directionX = forceDirectionX * force * 2;
+                        const directionY = forceDirectionY * force * 2;
+                        
+                        this.vx -= directionX;
+                        this.vy -= directionY;
+                    }
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+        }
+
+        function init() {
+            particles = [];
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+
+                for (let j = i; j < particles.length; j++) {
+                    let dx = particles[i].x - particles[j].x;
+                    let dy = particles[i].y - particles[j].y;
+                    let distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < connectionDistance) {
+                        ctx.beginPath();
+                        let opacity = 1 - (distance / connectionDistance);
+                        ctx.strokeStyle = `rgba(74, 222, 128, ${opacity * 0.2})`;
+                        ctx.lineWidth = 1;
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+
+        init();
+        animate();
+    </script>
+</body>
+</html>
+
